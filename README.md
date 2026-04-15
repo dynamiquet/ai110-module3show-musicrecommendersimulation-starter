@@ -178,6 +178,67 @@ You can add more tests in `tests/test_recommender.py`.
 
 ---
 
+## CLI Output (Phase 3 Verification)
+
+Terminal output from `python -m src.main` with two starter profiles:
+
+```
+Loaded 18 songs.
+
+============================================================
+Profile: Pop / Happy (high energy)
+  genre=pop  mood=happy  energy=0.8  valence=0.84  acoustic=False
+------------------------------------------------------------
+  1. Sunrise City  —  Neon Echo
+     Score : 7.47
+     Why   : genre match: pop (+3.0) | mood match: happy (+2.0) | energy proximity (+1.47) | valence proximity (+1.00)
+
+  2. Gym Hero  —  Max Pulse
+     Score : 5.23
+     Why   : genre match: pop (+3.0) | energy proximity (+1.30) | valence proximity (+0.93)
+
+  3. Rooftop Lights  —  Indigo Parade
+     Score : 4.41
+     Why   : mood match: happy (+2.0) | energy proximity (+1.44) | valence proximity (+0.97)
+
+  4. Crown Heights Flow  —  The Fresh Cipher
+     Score : 2.36
+     Why   : energy proximity (+1.47) | valence proximity (+0.89)
+
+  5. Drop Zone  —  Voltage Drop
+     Score : 2.27
+     Why   : energy proximity (+1.28) | valence proximity (+0.99)
+
+============================================================
+Profile: Late-night study session (lofi / focused)
+  genre=lofi  mood=focused  energy=0.4  valence=0.58  acoustic=True
+------------------------------------------------------------
+  1. Focus Flow  —  LoRoom
+     Score : 7.99
+     Why   : genre match: lofi (+3.0) | mood match: focused (+2.0) | energy proximity (+1.50) | valence proximity (+0.99) | acoustic match (+0.50)
+
+  2. Midnight Coding  —  LoRoom
+     Score : 5.95
+     Why   : genre match: lofi (+3.0) | energy proximity (+1.47) | valence proximity (+0.98) | acoustic match (+0.50)
+
+  3. Library Rain  —  Paper Lanterns
+     Score : 5.90
+     Why   : genre match: lofi (+3.0) | energy proximity (+1.42) | valence proximity (+0.98) | acoustic match (+0.50)
+
+  4. Coffee Shop Stories  —  Slow Stereo
+     Score : 2.83
+     Why   : energy proximity (+1.46) | valence proximity (+0.87) | acoustic match (+0.50)
+
+  5. Porch Song  —  Blue Ridge Duo
+     Score : 2.82
+     Why   : energy proximity (+1.36) | valence proximity (+0.96) | acoustic match (+0.50)
+============================================================
+```
+
+The results are intuitive: "Sunrise City" is a clean genre + mood + energy triple-match for the pop profile. "Focus Flow" scores 7.99 for the study profile because all five scoring rules fire simultaneously (genre, mood, energy, valence, and acoustic bonus).
+
+---
+
 ## Experiments You Tried
 
 Use this section to document the experiments you ran. For example:
