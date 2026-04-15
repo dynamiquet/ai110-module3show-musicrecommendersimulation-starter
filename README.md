@@ -11,7 +11,7 @@ Your goal is to:
 - Evaluate what your system gets right and wrong
 - Reflect on how this mirrors real world AI recommenders
 
-This version builds a **content-based recommender** that scores each song in a 10-song catalog against a user's taste profile (preferred genre, mood, target energy level, and acoustic preference). Songs are ranked by their total score and the top K results are returned with a plain-language explanation of why each one was chosen.
+This version builds a **content-based recommender** that scores each song in an 18-song catalog against a user's taste profile (preferred genre, mood, target energy level, and acoustic preference). Songs are ranked by their total score and the top K results are returned with a plain-language explanation of why each one was chosen.
 
 ---
 
@@ -29,17 +29,17 @@ This simulation uses **pure content-based filtering**, which is transparent and 
 
 Each `Song` object stores the following attributes from `data/songs.csv`:
 
-| Feature        | Type      | What it captures                                                                |
-| -------------- | --------- | ------------------------------------------------------------------------------- |
-| `genre`        | string    | Overall musical category (pop, lofi, rock, ambient, jazz, synthwave, indie pop) |
-| `mood`         | string    | Emotional context (happy, chill, intense, relaxed, focused, moody)              |
-| `energy`       | float 0–1 | Intensity level; 0.28 (ambient) to 0.93 (gym pop)                               |
-| `valence`      | float 0–1 | Emotional brightness/positivity                                                 |
-| `danceability` | float 0–1 | Rhythmic drive and groove                                                       |
-| `acousticness` | float 0–1 | Organic vs electronic sound texture                                             |
-| `tempo_bpm`    | float     | Beats per minute                                                                |
+| Feature        | Type      | What it captures                                                                            |
+| -------------- | --------- | ------------------------------------------------------------------------------------------- |
+| `genre`        | string    | Musical category (pop, lofi, rock, ambient, jazz, synthwave, hip-hop, r&b, metal, folk, edm, blues, reggae, classical, indie pop) |
+| `mood`         | string    | Emotional context (happy, chill, intense, relaxed, focused, moody, energetic, romantic, peaceful, angry, nostalgic, euphoric, melancholic) |
+| `energy`       | float 0–1 | Intensity level; 0.22 (classical) to 0.97 (metal)                                          |
+| `valence`      | float 0–1 | Emotional brightness/positivity                                                             |
+| `danceability` | float 0–1 | Rhythmic drive and groove                                                                   |
+| `acousticness` | float 0–1 | Organic vs electronic sound texture                                                         |
+| `tempo_bpm`    | float     | Beats per minute                                                                            |
 
-The four most effective features for matching "vibe" are **genre**, **mood**, **energy**, and **valence** — genre and mood act as strong categorical gates, while energy and valence provide fine-grained numerical tuning within a genre.
+The catalog was expanded from 10 to **18 songs** to include genres and moods missing from the starter file: hip-hop, r&b, classical, metal, folk, edm, blues, and reggae. The four most effective features for matching "vibe" are **genre**, **mood**, **energy**, and **valence** — genre and mood act as strong categorical gates while energy and valence provide fine-grained numerical tuning within a genre.
 
 ---
 
@@ -50,7 +50,22 @@ A `UserProfile` stores:
 - `favorite_genre` — the genre the user most wants to hear
 - `favorite_mood` — the emotional context they are in right now
 - `target_energy` — a float 0–1 representing how high-energy they want the music
+- `target_valence` — a float 0–1 representing how bright/positive the user wants the music to feel
 - `likes_acoustic` — boolean preference for organic vs electronic sound
+
+**Sample profile — "Late-night study session":**
+
+```python
+user_prefs = {
+    "favorite_genre":  "lofi",
+    "favorite_mood":   "focused",
+    "target_energy":   0.40,
+    "target_valence":  0.58,
+    "likes_acoustic":  True,
+}
+```
+
+This profile can clearly differentiate "intense rock" from "chill lofi" because all three dimensions push in opposite directions simultaneously: genre (`lofi` vs `rock`), mood (`focused` vs `intense`), and energy (0.40 vs 0.91). The profile is not too narrow — genre and mood provide categorical gates while energy and valence give continuous gradation, so even songs outside the `lofi` genre receive meaningful partial scores based on how close their feel is to the user's numerical targets.
 
 ---
 
@@ -81,6 +96,50 @@ return ranked[:k]
 ```
 
 ---
+
+### Data Flow
+
+```mermaid
+flowchart TD
+    A["User Profile\nfavorite_genre · favorite_mood\ntarget_energy · target_valence\nlikes_acoustic"]
+    B[("data/songs.csv\n18 songs")]
+
+    B --> C[load_songs]
+    C --> D[Song list in memory]
+    A --> E
+    D --> E{For each song\nscore_song}
+
+    E --> F{genre match?}
+    F -- "+3.0" --> G[accumulate score]
+    F -- "+0.0" --> G
+
+    G --> H{mood match?}
+    H -- "+2.0" --> I[accumulate score]
+    H -- "+0.0" --> I
+
+    I --> J["energy proximity\n+1.5 × (1 − |diff|)"]
+    J --> K["valence proximity\n+1.0 × (1 − |diff|)"]
+    K --> L{acoustic bonus?}
+    L -- "+0.5" --> M[Final score for this song]
+    L -- "+0.0" --> M
+
+    M --> E
+    E -- "all 18 songs scored" --> N["Sort DESC by score"]
+    N --> O["Return Top K songs"]
+    O --> P["Display title · score · explanation"]
+```
+
+---
+
+### Known Biases and Limitations
+
+| Bias | Why it happens | Impact |
+|---|---|---|
+| Genre dominance | Genre weight (3.0) can outweigh a perfect mood + energy match from another genre | A mediocre lofi song may rank above a near-perfect ambient song for a lofi user |
+| No partial genre credit | `lofi` vs `ambient` scores 0.0 despite similar vibes; there is no concept of genre proximity | Related genres are treated as completely different |
+| Catalog skew | Each genre has only 1–2 songs, so a user who prefers hip-hop has very limited choices | Top results will be thin for underrepresented genres |
+| Cold start | Profiles require explicit values; the system never learns from actual listening behavior | A user's first-run profile may not reflect their real taste |
+| Acoustic bonus asymmetry | The acoustic bonus only fires when the user prefers acoustic; non-acoustic users get no equivalent bonus | Slight structural advantage for acoustic-preferring profiles |
 
 ## Getting Started
 
