@@ -31,15 +31,20 @@ Each `Song` object stores the following attributes from `data/songs.csv`:
 
 | Feature        | Type      | What it captures                                                                            |
 | -------------- | --------- | ------------------------------------------------------------------------------------------- |
-| `genre`        | string    | Musical category (pop, lofi, rock, ambient, jazz, synthwave, hip-hop, r&b, metal, folk, edm, blues, reggae, classical, indie pop) |
-| `mood`         | string    | Emotional context (happy, chill, intense, relaxed, focused, moody, energetic, romantic, peaceful, angry, nostalgic, euphoric, melancholic) |
-| `energy`       | float 0–1 | Intensity level; 0.22 (classical) to 0.97 (metal)                                          |
-| `valence`      | float 0–1 | Emotional brightness/positivity                                                             |
-| `danceability` | float 0–1 | Rhythmic drive and groove                                                                   |
-| `acousticness` | float 0–1 | Organic vs electronic sound texture                                                         |
-| `tempo_bpm`    | float     | Beats per minute                                                                            |
+| `genre`              | string    | Musical category (pop, lofi, rock, ambient, jazz, synthwave, hip-hop, r&b, metal, folk, edm, blues, reggae, classical, indie pop) |
+| `mood`               | string    | Emotional context (happy, chill, intense, relaxed, focused, moody, energetic, romantic, peaceful, angry, nostalgic, euphoric, melancholic) |
+| `energy`             | float 0–1 | Intensity level; 0.22 (classical) to 0.97 (metal)                                          |
+| `valence`            | float 0–1 | Emotional brightness/positivity                                                             |
+| `danceability`       | float 0–1 | Rhythmic drive and groove                                                                   |
+| `acousticness`       | float 0–1 | Organic vs electronic sound texture                                                         |
+| `tempo_bpm`          | float     | Beats per minute                                                                            |
+| `popularity`         | int 0–100 | Stream-count proxy; 27 (niche blues) to 85 (pop hit)                                       |
+| `release_decade`     | int       | Decade of release: 2000, 2010, or 2020                                                     |
+| `speechiness`        | float 0–1 | Fraction of the track that is spoken word or rap                                            |
+| `instrumentalness`   | float 0–1 | Fraction that is pure music with no vocals                                                  |
+| `liveness`           | float 0–1 | Likelihood the recording captures a live performance                                        |
 
-The catalog was expanded from 10 to **18 songs** to include genres and moods missing from the starter file: hip-hop, r&b, classical, metal, folk, edm, blues, and reggae. The four most effective features for matching "vibe" are **genre**, **mood**, **energy**, and **valence** — genre and mood act as strong categorical gates while energy and valence provide fine-grained numerical tuning within a genre.
+The catalog was expanded from 10 to **18 songs** to cover genres absent from the starter file: hip-hop, r&b, classical, metal, folk, edm, blues, and reggae. The four most effective features for matching "vibe" are **genre**, **mood**, **energy**, and **valence** — genre and mood act as strong categorical gates while energy and valence provide fine-grained numerical tuning within a genre. The five additional features (`popularity` through `liveness`) are opt-in and only score when the user profile specifies a target for them.
 
 ---
 
@@ -47,11 +52,19 @@ The catalog was expanded from 10 to **18 songs** to include genres and moods mis
 
 A `UserProfile` stores:
 
+**Core fields (required):**
 - `favorite_genre` — the genre the user most wants to hear
 - `favorite_mood` — the emotional context they are in right now
-- `target_energy` — a float 0–1 representing how high-energy they want the music
-- `target_valence` — a float 0–1 representing how bright/positive the user wants the music to feel
+- `target_energy` — a float 0–1 for desired intensity
+- `target_valence` — a float 0–1 for desired emotional brightness
 - `likes_acoustic` — boolean preference for organic vs electronic sound
+
+**Optional fields (scored only when set):**
+- `target_popularity` — int 0–100; rewards songs closest to this niche vs mainstream level
+- `preferred_decade` — 2000, 2010, or 2020; rewards songs from that era
+- `target_speechiness` — float 0–1; rewards songs matching vocal/rap density preference
+- `target_instrumentalness` — float 0–1; rewards songs matching vocal-free preference
+- `likes_live` — boolean; adds a bonus for recordings with high liveness
 
 **Sample profile — "Late-night study session":**
 
@@ -74,15 +87,27 @@ This profile can clearly differentiate "intense rock" from "chill lofi" because 
 Each song is evaluated with a weighted sum:
 
 ```
+# --- Base scoring (always active) ---
 score = 0
 if song.genre == user.favorite_genre:   score += 3.0   # strongest signal
 if song.mood  == user.favorite_mood:    score += 2.0   # emotional context
-score += 1.5 × (1 − |user.target_energy − song.energy|)   # proximity, not just "higher"
-score += 1.0 × (1 − |user.target_valence − song.valence|) # emotional brightness match
-if user.likes_acoustic and song.acousticness > 0.6:        score += 0.5
+score += 1.5 × (1 − |user.target_energy  − song.energy|)
+score += 1.0 × (1 − |user.target_valence − song.valence|)
+if user.likes_acoustic and song.acousticness > 0.6:  score += 0.5
+
+# --- Advanced scoring (fires only when profile includes the optional field) ---
+if user.target_popularity:       score += 0.50 × (1 − |target − song.popularity| / 100)
+if user.preferred_decade:        score += 1.00 × (1 − |target − song.release_decade| / 60)
+if user.target_speechiness:      score += 0.50 × (1 − |target − song.speechiness|)
+if user.target_instrumentalness: score += 0.75 × (1 − |target − song.instrumentalness|)
+if user.likes_live and song.liveness > 0.2:  score += 0.30
 ```
 
-Genre carries the highest weight (3.0) because it is the single most defining dimension of musical taste. Mood is second (2.0) because it captures use-case context that genre alone misses (two pop songs can feel completely different if one is intense and one is chill). The numerical features use a **proximity formula** — `1 − |difference|` — so a song that exactly matches the user's target energy scores the full 1.5 points, and songs further away score less.
+Genre carries the highest weight (3.0) because it is the single most defining dimension of musical taste. Mood is second (2.0) because it captures use-case context that genre alone misses. Numerical features use a **proximity formula** — `1 − |difference|` — so a perfect match earns the full weight and a far match earns near zero.
+
+**Scoring strategies:** Four weight presets (`DEFAULT`, `GENRE_FIRST`, `MOOD_FIRST`, `ENERGY_FOCUSED`) swap which features drive rankings without changing any other code. Pass a preset to `recommend_songs(weights=MOOD_FIRST)` to change strategy.
+
+**Diversity filter:** After scoring, an optional post-processing step caps results at 1 song per artist and 2 songs per genre. Pass `diverse=True` to `recommend_songs` to enable it.
 
 ---
 
@@ -359,122 +384,8 @@ See [model_card.md](model_card.md) for a deeper analysis of each bias.
 
 ## Reflection
 
-Read and complete `model_card.md`:
+See the full analysis in [model_card.md](model_card.md).
 
-[**Model Card**](model_card.md)
+Building this system made clear that **recommenders do not understand music — they understand numbers**. The scoring formula has no concept that lofi and ambient share a similar vibe; it just sees that their genre strings do not match and assigns zero. Every recommendation can be explained with arithmetic, which is both the strength and the limit of the approach.
 
-Write 1 to 2 paragraphs here about what you learned:
-
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
-
----
-
-## 7. `model_card_template.md`
-
-Combines reflection and model card framing from the Module 3 guidance. :contentReference[oaicite:2]{index=2}
-
-```markdown
-# 🎧 Model Card - Music Recommender Simulation
-
-## 1. Model Name
-
-Give your recommender a name, for example:
-
-> VibeFinder 1.0
-
----
-
-## 2. Intended Use
-
-- What is this system trying to do
-- Who is it for
-
-Example:
-
-> This model suggests 3 to 5 songs from a small catalog based on a user's preferred genre, mood, and energy level. It is for classroom exploration only, not for real users.
-
----
-
-## 3. How It Works (Short Explanation)
-
-Describe your scoring logic in plain language.
-
-- What features of each song does it consider
-- What information about the user does it use
-- How does it turn those into a number
-
-Try to avoid code in this section, treat it like an explanation to a non programmer.
-
----
-
-## 4. Data
-
-Describe your dataset.
-
-- How many songs are in `data/songs.csv`
-- Did you add or remove any songs
-- What kinds of genres or moods are represented
-- Whose taste does this data mostly reflect
-
----
-
-## 5. Strengths
-
-Where does your recommender work well
-
-You can think about:
-
-- Situations where the top results "felt right"
-- Particular user profiles it served well
-- Simplicity or transparency benefits
-
----
-
-## 6. Limitations and Bias
-
-Where does your recommender struggle
-
-Some prompts:
-
-- Does it ignore some genres or moods
-- Does it treat all users as if they have the same taste shape
-- Is it biased toward high energy or one genre by default
-- How could this be unfair if used in a real product
-
----
-
-## 7. Evaluation
-
-How did you check your system
-
-Examples:
-
-- You tried multiple user profiles and wrote down whether the results matched your expectations
-- You compared your simulation to what a real app like Spotify or YouTube tends to recommend
-- You wrote tests for your scoring logic
-
-You do not need a numeric metric, but if you used one, explain what it measures.
-
----
-
-## 8. Future Work
-
-If you had more time, how would you improve this recommender
-
-Examples:
-
-- Add support for multiple users and "group vibe" recommendations
-- Balance diversity of songs instead of always picking the closest match
-- Use more features, like tempo ranges or lyric themes
-
----
-
-## 9. Personal Reflection
-
-A few sentences about what you learned:
-
-- What surprised you about how your system behaved
-- How did building this change how you think about real music recommenders
-- Where do you think human judgment still matters, even if the model seems "smart"
-```
+The most surprising result was how much the *weight ratios* matter. Changing genre from 3.0 to 1.5 and energy from 1.5 to 3.0 was a small numerical tweak, but it meaningfully reshuffled the rankings — Rooftop Lights climbed past Gym Hero because it had a tighter energy fit that the original genre-heavy weights had been hiding. That single experiment showed that the weights encode a value judgment about what music taste *is*, not just a technical dial. Real platforms face the same tradeoff at massive scale, and the choice of what to weight shapes what artists get promoted and what users never discover.
